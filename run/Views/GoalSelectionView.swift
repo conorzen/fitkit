@@ -19,24 +19,64 @@ struct GoalSelectionView: View {
     ]
     
     var body: some View {
-        Form {
-            Section {
-                ForEach(goalItems, id: \.title) { item in
-                    Button {
-                        selectedGoal = item.goal
-                    } label: {
-                        GoalCell(
-                            title: item.title,
-                            subtitle: item.subtitle,
-                            icon: item.icon,
-                            isSelected: selectedGoal == item.goal
-                        )
+        ScrollView {
+            VStack(spacing: 16) {
+                // Running Goals Card
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Running Goals")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    VStack(spacing: 12) {
+                        ForEach(goalItems, id: \.title) { item in
+                            Button {
+                                selectedGoal = item.goal
+                            } label: {
+                                HStack {
+                                    Image(systemName: item.icon)
+                                        .font(.title2)
+                                        .frame(width: 32)
+                                    
+                                    VStack(alignment: .leading) {
+                                        Text(item.title)
+                                            .font(.headline)
+                                        Text(item.subtitle)
+                                            .font(.subheadline)
+                                            .opacity(0.9)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    if selectedGoal == item.goal {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                .padding()
+                                .background(selectedGoal == item.goal ? Color.white.opacity(0.2) : Color.clear)
+                                .cornerRadius(12)
+                            }
+                            .foregroundColor(.white)
+                        }
                     }
                 }
-            } header: {
-                Text("What's your running goal?")
+                .padding(20)
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            CustomColors.Brand.primary,
+                            CustomColors.Brand.secondary
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .cornerRadius(16)
+                .shadow(radius: 5)
             }
+            .padding()
         }
+        .background(Color(.systemGroupedBackground))
     }
 }
 

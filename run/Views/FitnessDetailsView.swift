@@ -8,6 +8,7 @@ struct FitnessDetailsView: View {
     @Binding var availableDays: Set<Models.Weekday>
     @Binding var preferredTimeOfDay: Models.TimeOfDay
     @Binding var current5KTime: TimeInterval
+    @Binding var targetDate: Date
     @State private var showingLevelInfo = false
     
     let commonDistances = [5.0, 10.0, 21.1, 42.2]
@@ -15,7 +16,6 @@ struct FitnessDetailsView: View {
     var body: some View {
         Form {
             makeExperienceSection()
-            makeAvailabilitySection()
             if case .raceTraining = selectedGoal {
                 makeRaceDetailsSection()
             }
@@ -46,18 +46,6 @@ struct FitnessDetailsView: View {
                     title: "Current 5K Time",
                     timeInterval: $current5KTime
                 )
-            }
-        }
-    }
-    
-    private func makeAvailabilitySection() -> some View {
-        Section("Weekly Availability") {
-            WeekdaySelector(selectedDays: $availableDays)
-            
-            Picker("Preferred Time", selection: $preferredTimeOfDay) {
-                ForEach(Models.TimeOfDay.allCases, id: \.self) { time in
-                    Text(time.rawValue).tag(time)
-                }
             }
         }
     }
@@ -176,36 +164,6 @@ enum Weekday: String, CaseIterable {
 //    case afternoon = "Afternoon"
 //    case evening = "Evening"
 //}
-
-struct WeekdaySelector: View {
-    @Binding var selectedDays: Set<Models.Weekday>
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Available Days")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            HStack(spacing: 8) {
-                ForEach(Models.Weekday.allCases, id: \.self) { day in
-                    DayToggle(
-                        day: day,
-                        isSelected: selectedDays.contains(day),
-                        action: {
-                            if selectedDays.contains(day) {
-                                if selectedDays.count > 1 {
-                                    selectedDays.remove(day)
-                                }
-                            } else {
-                                selectedDays.insert(day)
-                            }
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
 
 struct DayToggle: View {
     let day: Models.Weekday
@@ -402,4 +360,3 @@ struct FitnessLevelInfoView: View {
         }
     }
 }
-

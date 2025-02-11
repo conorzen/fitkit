@@ -8,6 +8,7 @@ struct RunningPlanSteps {
     @Binding var availableDays: Set<Models.Weekday>
     @Binding var preferredTimeOfDay: Models.TimeOfDay
     @Binding var current5KTime: TimeInterval
+    @Binding var targetDate: Date
     
     var firstStep: some View {
         GoalSelectionView(selectedGoal: $selectedGoal)
@@ -22,7 +23,8 @@ struct RunningPlanSteps {
             targetTime: $targetTime,
             availableDays: $availableDays,
             preferredTimeOfDay: $preferredTimeOfDay,
-            current5KTime: $current5KTime
+            current5KTime: $current5KTime,
+            targetDate: $targetDate
         )
         .tag(1)
     }
@@ -30,7 +32,9 @@ struct RunningPlanSteps {
     var thirdStep: some View {
         ScheduleView(
             availableDays: $availableDays,
-            preferredTimeOfDay: $preferredTimeOfDay
+            preferredTimeOfDay: $preferredTimeOfDay,
+            targetDate: $targetDate,
+            selectedGoal: selectedGoal
         )
         .tag(2)
     }

@@ -96,9 +96,6 @@ enum Models {
         case saturday = "Saturday"
         case sunday = "Sunday"
         
-        var shortName: String {
-            String(rawValue.prefix(3))
-        }
         
         var dayValue: Int {
             switch self {

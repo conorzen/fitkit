@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FacebookCore
 
 @main
 struct runApp: App {

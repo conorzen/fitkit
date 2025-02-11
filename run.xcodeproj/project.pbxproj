@@ -6,6 +6,17 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		1178FE942D57787800F4897E /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = 1178FE932D57787800F4897E /* Auth */; };
+		1178FE962D57787800F4897E /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = 1178FE952D57787800F4897E /* Functions */; };
+		1178FE982D57787800F4897E /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 1178FE972D57787800F4897E /* PostgREST */; };
+		1178FE9A2D57787800F4897E /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 1178FE992D57787800F4897E /* Realtime */; };
+		1178FE9C2D57787800F4897E /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 1178FE9B2D57787800F4897E /* Storage */; };
+		1178FEBD2D57793B00F4897E /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 1178FEBC2D57793B00F4897E /* Supabase */; };
+		1178FEC52D58C03100F4897E /* FacebookBasics in Frameworks */ = {isa = PBXBuildFile; productRef = 1178FEC42D58C03100F4897E /* FacebookBasics */; };
+		1178FEC72D58C03100F4897E /* FacebookLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 1178FEC62D58C03100F4897E /* FacebookLogin */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		1178FE6A2D576F0B00F4897E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -29,9 +40,22 @@
 		1178FE732D576F0B00F4897E /* runUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = runUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		1178FE8A2D5772E500F4897E /* Exceptions for "run" folder in "run" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 1178FE532D576F0A00F4897E /* run */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		1178FE562D576F0A00F4897E /* run */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				1178FE8A2D5772E500F4897E /* Exceptions for "run" folder in "run" target */,
+			);
 			path = run;
 			sourceTree = "<group>";
 		};
@@ -52,6 +76,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1178FEC72D58C03100F4897E /* FacebookLogin in Frameworks */,
+				1178FEC52D58C03100F4897E /* FacebookBasics in Frameworks */,
+				1178FE982D57787800F4897E /* PostgREST in Frameworks */,
+				1178FE962D57787800F4897E /* Functions in Frameworks */,
+				1178FEBD2D57793B00F4897E /* Supabase in Frameworks */,
+				1178FE942D57787800F4897E /* Auth in Frameworks */,
+				1178FE9C2D57787800F4897E /* Storage in Frameworks */,
+				1178FE9A2D57787800F4897E /* Realtime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +144,14 @@
 			);
 			name = run;
 			packageProductDependencies = (
+				1178FE932D57787800F4897E /* Auth */,
+				1178FE952D57787800F4897E /* Functions */,
+				1178FE972D57787800F4897E /* PostgREST */,
+				1178FE992D57787800F4897E /* Realtime */,
+				1178FE9B2D57787800F4897E /* Storage */,
+				1178FEBC2D57793B00F4897E /* Supabase */,
+				1178FEC42D58C03100F4897E /* FacebookBasics */,
+				1178FEC62D58C03100F4897E /* FacebookLogin */,
 			);
 			productName = run;
 			productReference = 1178FE542D576F0A00F4897E /* run.app */;
@@ -195,6 +235,10 @@
 			);
 			mainGroup = 1178FE4B2D576F0900F4897E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				1178FE922D57787800F4897E /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				1178FEC32D58C03100F4897E /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1178FE552D576F0A00F4897E /* Products */;
 			projectDirPath = "";
@@ -393,12 +437,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = run/run.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"run/Preview Content\"";
 				DEVELOPMENT_TEAM = BVRPEM43W7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = run/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "RunAI needs access to your workout and heart rate data to track your runs";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "RunAI needs access to save your workout data";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -422,12 +472,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = run/run.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"run/Preview Content\"";
 				DEVELOPMENT_TEAM = BVRPEM43W7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = run/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "RunAI needs access to your workout and heart rate data to track your runs";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "RunAI needs access to save your workout data";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -558,6 +614,68 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		1178FE922D57787800F4897E /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase-community/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+		1178FEC32D58C03100F4897E /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/facebook/facebook-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 14.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1178FE932D57787800F4897E /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1178FE922D57787800F4897E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		1178FE952D57787800F4897E /* Functions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1178FE922D57787800F4897E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Functions;
+		};
+		1178FE972D57787800F4897E /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1178FE922D57787800F4897E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		1178FE992D57787800F4897E /* Realtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1178FE922D57787800F4897E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Realtime;
+		};
+		1178FE9B2D57787800F4897E /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1178FE922D57787800F4897E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+		1178FEBC2D57793B00F4897E /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1178FE922D57787800F4897E /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		1178FEC42D58C03100F4897E /* FacebookBasics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1178FEC32D58C03100F4897E /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
+			productName = FacebookBasics;
+		};
+		1178FEC62D58C03100F4897E /* FacebookLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1178FEC32D58C03100F4897E /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
+			productName = FacebookLogin;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1178FE4C2D576F0900F4897E /* Project object */;
 }

@@ -13,11 +13,12 @@ struct SettingsView: View {
     @State private var currentUser: User?
     // State variables for user preferences
     @State private var username = "Runner123"
-    @State private var isHealthKitEnabled = true
+    @State private var isHealthKitEnabled = false
     @State private var isNotificationsEnabled = true
     @State private var selectedDistanceUnit = DistanceUnit.miles
     @State private var selectedVoiceFeedback = VoiceFeedback.everyMile
     @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var healthKit = HealthKitManager.shared
     
     var body: some View {
         NavigationView {
@@ -95,7 +96,34 @@ struct SettingsView: View {
                 
                 // Health & Tracking Section
                 Section(header: Text("Health & Tracking")) {
-                    Toggle("HealthKit Integration", isOn: $isHealthKitEnabled)
+                    Toggle("HealthKit Integration", isOn: Binding(
+                        get: { isHealthKitEnabled },
+                        set: { newValue in
+                            isHealthKitEnabled = newValue
+                            healthKit.toggleHealthKit(isEnabled: newValue)
+                        }
+                    ))
+                    
+                    if isHealthKitEnabled {
+                        if healthKit.isHealthKitAvailable {
+                            if healthKit.isAuthorized {
+                                Text("Connected to HealthKit")
+                                    .foregroundColor(.green)
+                            } else {
+                                Text("Authorization Required")
+                                    .foregroundColor(.orange)
+                                Button("Authorize HealthKit") {
+                                    Task {
+                                        await healthKit.requestAuthorization()
+                                    }
+                                }
+                            }
+                        } else {
+                            Text("HealthKit not available on this device")
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
                     Toggle("Allow Notifications", isOn: $isNotificationsEnabled)
                     
                     NavigationLink("Privacy Settings") {
@@ -110,7 +138,7 @@ struct SettingsView: View {
                 // Integration Section
                 Section(header: Text("Devices and connections")) {
                     NavigationLink {
-                        Text("Watch Settings View")
+                        Devices()
                     } label: {
                         HStack {
                             Text("Devices")

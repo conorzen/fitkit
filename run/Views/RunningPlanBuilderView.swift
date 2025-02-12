@@ -24,253 +24,177 @@ enum RunningGoal: Equatable {
 }
 
 struct RunningPlanBuilderView: View {
+    @EnvironmentObject private var authManager: AuthManager
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var authManager: AuthManager
     
-    @State var currentStep = 0
-    @State var selectedGoal: Models.RunningGoal = .beginnerFitness
-    @State var fitnessLevel: Models.FitnessLevel = .beginner
-    @State var raceDistance: Double = 5.0
-    @State var targetTime: TimeInterval = 30 * 60
-    @State var availableDays = Set<Models.Weekday>()
+    @State private var selectedGoal: Models.RunningGoal = .beginnerFitness
+    @State private var fitnessLevel: Models.FitnessLevel = .beginner
+    @State private var targetDate = Date().addingTimeInterval(8 * 7 * 24 * 60 * 60)
+    @State private var raceDistance: Double = 5.0
+    @State private var targetTime: TimeInterval = 1800
+    @State private var showSummary = false
+    @State var availableDays: Set<Models.Weekday> = [.monday, .wednesday, .friday]
     @State var preferredTimeOfDay: Models.TimeOfDay = .morning
-    @State var current5KTime: TimeInterval = 30 * 60
-    @State private var showAlert = false
-    @State private var alertMessage = ""
-    @State private var showingSummary = false
-    @State private var targetDate = Date().addingTimeInterval(8 * 7 * 24 * 60 * 60) // 8 weeks from now
+    @State private var authorizationState: WorkoutScheduler.AuthorizationState = .notDetermined
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color(.systemBackground)
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 16) {
-                    // Progress indicator
-                    HStack(spacing: 24) {
-                        ForEach(0..<3) { index in
-                            Circle()
-                                .fill(index <= currentStep ? CustomColors.Brand.primary : Color.gray.opacity(0.3))
-                                .frame(width: 8, height: 8)
+        NavigationStack {
+            Form {
+                Section("Goal") {
+                    Picker("Goal", selection: $selectedGoal) {
+                        ForEach(Models.RunningGoal.allCases, id: \.self) { goal in
+                            Text(goal.rawValue).tag(goal)
                         }
                     }
-                    .padding(.top)
-                    
-                    // Main content
-                    TabView(selection: $currentStep) {
-                        steps.firstStep
-                            .tag(0)
-                        steps.secondStep
-                            .tag(1)
-                        steps.thirdStep
-                            .tag(2)
-                    }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
                 }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                toolbar.makeToolbarContent()
-            }
-            .sheet(isPresented: $showingSummary) {
-                NavigationView {
-                    PlanSummaryView(
-                        goal: convertToRunningGoal(selectedGoal),
-                        fitnessLevel: fitnessLevel,
-                        targetDate: targetDate,
-                        raceDistance: raceDistance,
-                        targetTime: targetTime,
-                        onConfirm: {
-                            showingSummary = false
-                            createPlan()
-                        }
-                    )
-                }
-            }
-        }
-        .alert("Error", isPresented: $showAlert) {
-            Button("OK") { }
-        } message: {
-            Text(alertMessage)
-        }
-    }
-    
-    private func convertToRunningGoal(_ goal: Models.RunningGoal) -> RunningGoal {
-        switch goal {
-        case .beginnerFitness:
-            return .beginnerFitness
-        case .couchTo5K:
-            return .couchTo5K
-        case .raceTraining:
-            return .raceTraining(distance: raceDistance, targetTime: targetTime)
-        case .improvePace:
-            return .improvePace
-        }
-    }
-    
-    private var steps: RunningPlanSteps {
-        RunningPlanSteps(
-            selectedGoal: $selectedGoal,
-            fitnessLevel: $fitnessLevel,
-            raceDistance: $raceDistance,
-            targetTime: $targetTime,
-            availableDays: $availableDays,
-            preferredTimeOfDay: $preferredTimeOfDay,
-            current5KTime: $current5KTime,
-            targetDate: $targetDate
-        )
-    }
-    
-    private var toolbar: RunningPlanToolbar {
-        RunningPlanToolbar(
-            currentStep: currentStep,
-            canProceedToNextStep: canProceedToNextStep,
-            canCreatePlan: canCreatePlan,
-            onBack: { currentStep -= 1 },
-            onNext: { currentStep += 1 },
-            onCreatePlan: { showingSummary = true }
-        )
-    }
-    
-    private var navigationTitle: String {
-        switch currentStep {
-        case 0: return "Choose Your Goal"
-        case 1: return "Your Experience"
-        case 2: return "Schedule"
-        default: return ""
-        }
-    }
-    
-    private var canProceedToNextStep: Bool {
-        switch currentStep {
-        case 0:
-            return true
-        case 1:
-            if case .raceTraining = selectedGoal {
-                return raceDistance > 0 && targetTime > 0
-            }
-            return true  // Allow proceeding from fitness details for non-race goals
-        default:
-            return true
-        }
-    }
-    
-    private var canCreatePlan: Bool {
-        !availableDays.isEmpty
-    }
-    
-    private func createPlan() {
-        var workouts: [Date: [WorkoutItem]] = [:]
-        let calendar = Calendar.current
-        let numberOfWeeks = Calendar.current.dateComponents([.weekOfYear], from: Date(), to: targetDate).weekOfYear ?? 8
-        
-        // Generate workouts for each week
-        for weekOffset in 0..<numberOfWeeks {
-            for day in availableDays {
-                guard let date = calendar.date(byAdding: .day, value: weekOffset * 7 + day.dayValue - calendar.component(.weekday, from: Date()), to: Date()) else { continue }
                 
-                let workout = createWorkoutForWeek(
-                    week: weekOffset,
-                    totalWeeks: numberOfWeeks,
-                    goal: selectedGoal,
-                    fitnessLevel: fitnessLevel
+                if selectedGoal == .raceTraining {
+                    Section("Race Details") {
+                        // Race distance and time inputs
+                    }
+                }
+                
+                // ... rest of the form ...
+                
+                Section {
+                    switch authorizationState {
+                    case .notDetermined:
+                        Button("Request Watch Authorization") {
+                            Task {
+                                let newState = await WorkoutScheduler.shared.requestAuthorization()
+                                await MainActor.run {
+                                    authorizationState = newState
+                                }
+                            }
+                        }
+                    case .authorized:
+                        Button("Schedule Workouts") {
+                            Task {
+                                await scheduleWorkouts()
+                            }
+                        }
+                    case .denied:
+                        Text("Watch access denied. Please enable in Settings.")
+                            .foregroundColor(.red)
+                    case .restricted:
+                        Text("Watch access restricted.")
+                            .foregroundColor(.red)
+                    @unknown default:
+                        Text("Unknown authorization state")
+                            .foregroundColor(.red)
+                    }
+                } footer: {
+                    Text("Current authorization state: \(authorizationStateDescription)")
+                }
+            }
+            .navigationTitle("Create Training Plan")
+            .task {
+                // Check authorization state when view appears
+                authorizationState = await WorkoutScheduler.shared.authorizationState
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
+        }
+    }
+    
+    private func scheduleWorkouts() async {
+        do {
+            // Generate workouts based on the selected goal and fitness level
+            let trainingPlan = TrainingPlan.create(
+                userId: authManager.currentUser?.id ?? UUID(),
+                name: "Training Plan",
+                goal: selectedGoal,
+                startDate: Date(),
+                endDate: targetDate,
+                fitnessLevel: fitnessLevel,
+                workoutDays: Array(availableDays),
+                preferredTime: preferredTimeOfDay,
+                current5KTime: nil,
+                targetRaceDistance: raceDistance,
+                targetRaceTime: targetTime
+            )
+            
+            // Schedule each workout
+            for workout in trainingPlan.workouts {
+                // Convert PlannedWorkout to WorkoutPlan using TrainingPlanService
+                let workoutPlan = createWorkoutPlan(from: workout)
+                
+                var dateComponents = Calendar.current.dateComponents(
+                    [.year, .month, .day],
+                    from: workout.date
                 )
                 
-                workouts[date] = [workout]
+                // Add preferred time
+                switch preferredTimeOfDay {
+                case .morning: dateComponents.hour = 8
+                case .afternoon: dateComponents.hour = 14
+                case .evening: dateComponents.hour = 18
+                }
+                dateComponents.minute = 0
+                
+                // Schedule with WorkoutKit
+                try await WorkoutScheduler.shared.schedule(workoutPlan, at: dateComponents)
+            }
+            
+            await MainActor.run {
+                dismiss()
+            }
+        } catch {
+            print("Error scheduling workouts: \(error)")
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                showError = true
             }
         }
-        
-        // Post notification with workouts
-        NotificationCenter.default.post(
-            name: .planCreated,
-            object: workouts
-        )
-        dismiss()
     }
     
-    private func createWorkoutForWeek(week: Int, totalWeeks: Int, goal: Models.RunningGoal, fitnessLevel: Models.FitnessLevel) -> WorkoutItem {
-        let phase: String
-        let details: String
+    private func createWorkoutPlan(from workout: PlannedWorkout) -> WorkoutPlan {
+        // Create warmup - 10 minute easy jog
+        let warmupStep = WorkoutStep(
+            goal: .time(10, .minutes),
+            displayName: "Warm Up - Easy Jog"
+        )
         
-        // Determine training phase
-        if week < totalWeeks / 4 {
-            phase = "Foundation"
-        } else if week < (totalWeeks * 3) / 4 {
-            phase = "Development"
+        // Create main workout block based on workout type
+        var workStep = IntervalStep(.work)
+        if let distance = workout.distance {
+            workStep.step.goal = .distance(distance, .kilometers)
         } else {
-            phase = "Peak"
+            workStep.step.goal = .time(workout.duration, .seconds)
         }
+        workStep.step.displayName = workout.workoutType.title
         
-        // Create workout based on goal and phase
-        switch goal {
-        case .beginnerFitness:
-            details = createBeginnerWorkout(week: week, phase: phase)
-        case .couchTo5K:
-            details = createCouch5KWorkout(week: week, phase: phase)
-        case .raceTraining:
-            details = createRaceWorkout(week: week, phase: phase, distance: raceDistance)
-        case .improvePace:
-            details = createSpeedWorkout(week: week, phase: phase, fitnessLevel: fitnessLevel)
-        }
-        
-        return WorkoutItem(
-            title: "\(phase) Training",
-            details: details,
-            iconName: "figure.run",
-            gradient: [CustomColors.Brand.primary, CustomColors.Brand.secondary]
+        // Create cooldown - 5 minute walk
+        let cooldownStep = WorkoutStep(
+            goal: .time(5, .minutes),
+            displayName: "Cool Down - Walk"
         )
+        
+        // Create the complete workout
+        let customWorkout = CustomWorkout(
+            activity: .running,
+            location: .outdoor,
+            displayName: workout.workoutType.title,
+            warmup: warmupStep,
+            blocks: [IntervalBlock(steps: [workStep], iterations: 1)],
+            cooldown: cooldownStep
+        )
+        
+        return WorkoutPlan(.custom(customWorkout))
     }
     
-    private func createBeginnerWorkout(week: Int, phase: String) -> String {
-        switch phase {
-        case "Foundation":
-            return "20-30 min • Easy Pace"
-        case "Development":
-            return "30-40 min • Easy-Moderate Pace"
-        case "Peak":
-            return "40-45 min • Moderate Pace"
-        default:
-            return "30 min • Easy Pace"
-        }
-    }
-    
-    private func createCouch5KWorkout(week: Int, phase: String) -> String {
-        switch phase {
-        case "Foundation":
-            return "Run/Walk • 20-30 min"
-        case "Development":
-            return "Run • 25-35 min"
-        case "Peak":
-            return "5K Practice • 30-40 min"
-        default:
-            return "Run/Walk • 30 min"
-        }
-    }
-    
-    private func createRaceWorkout(week: Int, phase: String, distance: Double) -> String {
-        switch phase {
-        case "Foundation":
-            return "Base Building • \(Int(distance * 0.4))K"
-        case "Development":
-            return "Race Pace • \(Int(distance * 0.6))K"
-        case "Peak":
-            return "Race Simulation • \(Int(distance * 0.8))K"
-        default:
-            return "Easy Run • \(Int(distance * 0.5))K"
-        }
-    }
-    
-    private func createSpeedWorkout(week: Int, phase: String, fitnessLevel: Models.FitnessLevel) -> String {
-        switch phase {
-        case "Foundation":
-            return "Tempo Run • 30-40 min"
-        case "Development":
-            return "Intervals • 40-50 min"
-        case "Peak":
-            return "Speed Work • 45-60 min"
-        default:
-            return "Easy Run • 40 min"
+    private var authorizationStateDescription: String {
+        switch authorizationState {
+        case .notDetermined: return "Not yet requested"
+        case .restricted: return "Restricted by system"
+        case .denied: return "Denied by user"
+        case .authorized: return "Authorized"
+        @unknown default: return "Unknown"
         }
     }
 }
@@ -285,6 +209,20 @@ extension Weekday {
         case .friday: return 4
         case .saturday: return 5
         case .sunday: return 6
+        }
+    }
+}
+
+extension Models.Weekday {
+    var calendarWeekday: Int {
+        switch self {
+        case .sunday: return 1
+        case .monday: return 2
+        case .tuesday: return 3
+        case .wednesday: return 4
+        case .thursday: return 5
+        case .friday: return 6
+        case .saturday: return 7
         }
     }
 }

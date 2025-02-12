@@ -1,15 +1,104 @@
 import SwiftUI
 
 struct PlanSummaryView: View {
-    let goal: RunningGoal
+    @EnvironmentObject private var authManager: AuthManager
+    @EnvironmentObject private var trainingPlanService: TrainingPlanService
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var isLoading = false
+    @State private var showAuth = false
+    
+    let goal: Models.RunningGoal
     let fitnessLevel: Models.FitnessLevel
     let targetDate: Date
     let raceDistance: Double
     let targetTime: TimeInterval
-    let onConfirm: () -> Void
+    let availableDays: [Models.Weekday]
     
     private var weeks: Int {
         Calendar.current.dateComponents([.weekOfYear], from: Date(), to: targetDate).weekOfYear ?? 0
+    }
+    
+    private func generatePlanName() -> String {
+        switch goal {
+        case .beginnerFitness:
+            return "Beginner Fitness Plan"
+        case .couchTo5K:
+            return "Couch to 5K Plan"
+        case .raceTraining:
+            return "\(formatDistance(raceDistance)) Race Plan"
+        case .improvePace:
+            return "Speed Improvement Plan"
+        }
+    }
+    
+    private func createPlan() {
+        isLoading = true
+        
+        Task {
+            do {
+                // First check if we're authenticated
+                if authManager.currentUser == nil {
+                    print("No user logged in, showing authentication")
+                    await MainActor.run {
+                        isLoading = false
+                        showAuth = true
+                    }
+                    return
+                }
+                
+                print("Current user: \(String(describing: authManager.currentUser))")
+                
+                guard let user = authManager.currentUser else {
+                    throw NSError(domain: "PlanSummaryView", code: 1, 
+                                userInfo: [NSLocalizedDescriptionKey: "Please log in to create a plan"])
+                }
+                
+                let plan = TrainingPlan(
+                    id: UUID(),
+                    userId: user.id,
+                    name: generatePlanName(),
+                    goal: goal,
+                    startDate: Date(),
+                    endDate: targetDate,
+                    fitnessLevel: fitnessLevel,
+                    workoutDays: availableDays,
+                    preferredTime: .morning,
+                    workouts: [],
+                    current5KTime: nil,
+                    targetRaceDistance: goal == .raceTraining ? raceDistance : nil,
+                    targetRaceTime: goal == .raceTraining ? targetTime : nil,
+                    createdAt: Date(),
+                    updatedAt: Date()
+                )
+                
+                try await trainingPlanService.savePlan(plan)
+                await MainActor.run {
+                    isLoading = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    showError = true
+                    errorMessage = error.localizedDescription
+                    print("Error creating plan: \(error)")
+                }
+            }
+        }
+    }
+    
+    private func generateWorkoutDays() -> [Models.Weekday] {
+        switch fitnessLevel {
+        case .beginner:
+            return [.monday, .wednesday, .saturday]
+        case .intermediate:
+            return [.monday, .wednesday, .friday, .sunday]
+        case .advanced:
+            return [.monday, .tuesday, .thursday, .friday, .sunday]
+        }
     }
     
     var body: some View {
@@ -47,10 +136,10 @@ struct PlanSummaryView: View {
                         icon: "figure.run"
                     )
                     
-                    if case .raceTraining(let distance, _) = goal {
+                    if case .raceTraining = goal {
                         DetailRow(
                             title: "Target Distance",
-                            value: formatDistance(distance),
+                            value: formatDistance(raceDistance),
                             icon: "flag.checkered"
                         )
                         
@@ -82,27 +171,41 @@ struct PlanSummaryView: View {
                 .background(Color(.systemBackground))
                 .cornerRadius(12)
                 
-                Button(action: onConfirm) {
-                    Text("Create Training Plan")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(
-                            LinearGradient(
-                                colors: [CustomColors.Brand.primary, CustomColors.Brand.secondary],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(12)
+                Button(action: createPlan) {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    } else {
+                        Text("Create Training Plan")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(
+                    LinearGradient(
+                        colors: [CustomColors.Brand.primary, CustomColors.Brand.secondary],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(12)
                 .padding(.top)
+                .disabled(isLoading)
             }
             .padding()
         }
         .navigationTitle("Plan Summary")
         .background(Color(.systemGroupedBackground))
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
+        }
+        .sheet(isPresented: $showAuth) {
+            AuthenticationView()
+        }
     }
     
     private var goalTitle: String {
@@ -129,8 +232,8 @@ struct PlanSummaryView: View {
             return "A balanced plan to build your fitness through running"
         case .couchTo5K:
             return "Progressive training to reach your first 5K"
-        case .raceTraining(let distance, _):
-            return "Structured training for your \(formatDistance(distance)) race"
+        case .raceTraining:
+            return "Structured training for your \(formatDistance(raceDistance)) race"
         case .improvePace:
             return "Speed work and endurance training to increase your pace"
         }
@@ -229,8 +332,13 @@ private func formatDistance(_ distance: Double) -> String {
     }
 }
 
-//private func formatTime(_ timeInterval: TimeInterval) -> String {
-//    let hours = Int(timeInterval) / 3600
-//    let minutes = (Int(timeInterval) % 3600) / 60
-//    return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
-//} 
+// Add this extension to help with goal type checking
+extension Models.RunningGoal {
+    var isRaceTraining: Bool {
+        switch self {
+        case .raceTraining: return true
+        default: return false
+        }
+    }
+}
+

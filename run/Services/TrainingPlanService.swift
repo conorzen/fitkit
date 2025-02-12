@@ -1,87 +1,214 @@
 import Foundation
 import Supabase
 import WorkoutKit
+import Combine
+import HealthKit
 
-class TrainingPlanService {
+class TrainingPlanService: ObservableObject {
     static let shared = TrainingPlanService()
+    
+    @Published private(set) var plans: [TrainingPlan] = []
+    @Published private(set) var authorizationState: WorkoutScheduler.AuthorizationState = .notDetermined
+    
     private let supabase: SupabaseClient
+    private let workoutStore: WorkoutStore
+    private let encoder: JSONEncoder
+    private let decoder: JSONDecoder
     
     private init() {
-        self.supabase = SupabaseClient(
-            supabaseURL: URL(string: "YOUR_SUPABASE_URL")!,
-            supabaseKey: "YOUR_SUPABASE_KEY"
-        )
+        self.supabase = SupabaseConfig.client
+        self.workoutStore = WorkoutStore()
+        
+        self.encoder = JSONEncoder()
+        self.encoder.dateEncodingStrategy = .iso8601
+        self.encoder.keyEncodingStrategy = .convertToSnakeCase
+        
+        self.decoder = JSONDecoder()
+        self.decoder.dateDecodingStrategy = .iso8601
+        self.decoder.keyDecodingStrategy = .convertFromSnakeCase
+        
+        Task {
+            await checkAuthorization()
+            try? await loadPlans()
+        }
+    }
+    
+    func checkAuthorization() async {
+        authorizationState = await WorkoutScheduler.shared.authorizationState
+    }
+    
+    func requestAuthorization() async {
+        authorizationState = await WorkoutScheduler.shared.requestAuthorization()
+    }
+    
+    func loadPlans() async throws {
+        guard let session = try? await supabase.auth.session,
+              let userId = UUID(uuidString: session.user.id.uuidString) else { return }
+        
+        let decodedPlans: [TrainingPlan] = try await supabase.database
+            .from("training_plans")
+            .select()
+            .eq("user_id", value: userId)
+            .execute()
+            .value
+        
+        await MainActor.run {
+            plans = decodedPlans
+        }
     }
     
     func savePlan(_ plan: TrainingPlan) async throws {
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(plan)
+        print("TrainingPlanService: Starting plan save")
         
+        // First check/request authorization
+        if authorizationState != .authorized {
+            print("TrainingPlanService: Requesting WorkoutKit authorization")
+            await requestAuthorization()
+            
+            guard authorizationState == .authorized else {
+                throw NSError(domain: "TrainingPlanService", 
+                            code: 1, 
+                            userInfo: [NSLocalizedDescriptionKey: "WorkoutKit authorization required"])
+            }
+        }
+        
+        // Save to Supabase and get response
+        print("TrainingPlanService: Saving to Supabase")
+        let response: TrainingPlan = try await supabase.database
+            .from("training_plans")
+            .insert(plan)
+            .select()
+            .single()
+            .execute()
+            .value
+        
+        print("TrainingPlanService: Plan saved successfully")
+        
+        await MainActor.run {
+            plans.append(response)
+            NotificationCenter.default.post(
+                name: Notification.Name("trainingPlanCreated"),
+                object: nil,
+                userInfo: ["plan": response]
+            )
+        }
+        
+        // Schedule workouts
+        print("TrainingPlanService: Scheduling workouts")
+        try await scheduleWorkouts(response)
+    }
+    
+    func deletePlan(withId id: UUID) async throws {
         try await supabase.database
             .from("training_plans")
-            .insert(data)
-            .execute()
-    }
-    
-    func getPlans(for userId: String) async throws -> [TrainingPlan] {
-        let response = try await supabase.database
-            .from("training_plans")
-            .select()
-            .eq("userId", value: userId)
+            .delete()
+            .eq("id", value: id)
             .execute()
         
-        let decoder = JSONDecoder()
-        let data = try JSONSerialization.data(withJSONObject: response.data ?? [], options: [])
-        return try decoder.decode([TrainingPlan].self, from: data)
-    }
-    
-    func scheduleWorkouts(_ plan: TrainingPlan) async throws {
-        // First save to Supabase
-        try await savePlan(plan)
-        
-        // Then schedule on the watch
-        for workout in plan.workouts {
-            let workoutPlan = try await createWorkoutPlan(from: workout)
-            try await scheduleWorkout(workoutPlan, at: workout.date)
+        await MainActor.run {
+            plans.removeAll { $0.id == id }
+            NotificationCenter.default.post(
+                name: Notification.Name("trainingPlanDeleted"),
+                object: nil,
+                userInfo: ["planId": id]
+            )
         }
     }
     
-    private func createWorkoutPlan(from workout: PlannedWorkout) async throws -> CustomWorkout {
-        // Create workout using WorkoutKit
-        let blocks = try await generateWorkoutBlocks(for: workout)
+    func updatePlan(_ updatedPlan: TrainingPlan) async throws {
+        let response: TrainingPlan = try await supabase.database
+            .from("training_plans")
+            .update(updatedPlan)
+            .eq("id", value: updatedPlan.id)
+            .select()
+            .single()
+            .execute()
+            .value
         
-        return CustomWorkout(
+        await MainActor.run {
+            if let index = plans.firstIndex(where: { $0.id == updatedPlan.id }) {
+                plans[index] = response
+            }
+            NotificationCenter.default.post(
+                name: Notification.Name("trainingPlanUpdated"),
+                object: nil,
+                userInfo: ["plan": response]
+            )
+        }
+    }
+    
+    func getActivePlan() -> TrainingPlan? {
+        let today = Date()
+        return plans.first { plan in
+            today >= plan.startDate && today <= plan.endDate
+        }
+    }
+    
+    // MARK: - Watch Integration
+    private func scheduleWorkouts(_ plan: TrainingPlan) async throws {
+        for workout in plan.workouts {
+            let workoutPlan = createWorkoutPlan(from: workout)
+            
+            // Convert date to components
+            let calendar = Calendar.current
+            let dateComponents = calendar.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: workout.date
+            )
+            
+            // Schedule with WorkoutKit
+            try await WorkoutScheduler.shared.schedule(workoutPlan, at: dateComponents)
+            print("TrainingPlanService: Scheduled workout for \(workout.date)")
+        }
+        
+        // Refresh scheduled workouts
+        let scheduledWorkouts = await WorkoutScheduler.shared.scheduledWorkouts
+        print("TrainingPlanService: Total scheduled workouts: \(scheduledWorkouts.count)")
+    }
+    
+    private func createWorkoutPlan(from workout: PlannedWorkout) -> WorkoutPlan {
+        // Create warmup - 10 minute easy jog
+        let warmupStep = WorkoutStep(
+            goal: .time(10, .minutes),
+            displayName: "Warm Up - Easy Jog"
+        )
+        
+        // Create main workout block
+        var workStep = IntervalStep(.work)
+        if let distance = workout.distance {
+            workStep.step.goal = .distance(distance, .kilometers)
+        } else {
+            workStep.step.goal = .time(workout.duration, .seconds)
+        }
+        workStep.step.displayName = workout.workoutType.title
+        
+        // Create recovery block if needed
+        var recoveryStep = IntervalStep(.recovery)
+        recoveryStep.step.goal = .time(2, .minutes)
+        recoveryStep.step.displayName = "Recovery"
+        
+        // Create the interval block
+        let block = IntervalBlock(
+            steps: [workStep, recoveryStep],
+            iterations: 1
+        )
+        
+        // Create cooldown - 5 minute walk
+        let cooldownStep = WorkoutStep(
+            goal: .time(5, .minutes),
+            displayName: "Cool Down - Walk"
+        )
+        
+        // Create the complete workout
+        let customWorkout = CustomWorkout(
             activity: .running,
             location: .outdoor,
             displayName: workout.workoutType.title,
-            blocks: blocks
+            warmup: warmupStep,
+            blocks: [block],
+            cooldown: cooldownStep
         )
-    }
-    
-    private func generateWorkoutBlocks(for workout: PlannedWorkout) async throws -> [IntervalBlock] {
-        var blocks: [IntervalBlock] = []
         
-        switch workout.workoutType {
-        case .intervals:
-            let workStep = IntervalStep(.work, goal: .distance(400, .meters))
-            let restStep = IntervalStep(.recovery, goal: .time(60, .seconds))
-            blocks.append(IntervalBlock(steps: [workStep, restStep], iterations: 8))
-            
-        default:
-            let mainStep = IntervalStep(
-                .work,
-                goal: workout.distance != nil ?
-                    .distance(workout.distance! * 1000, .meters) :
-                    .time(workout.duration, .seconds)
-            )
-            blocks.append(IntervalBlock(steps: [mainStep], iterations: 1))
-        }
-        
-        return blocks
-    }
-    
-    private func scheduleWorkout(_ workout: CustomWorkout, at date: Date) async throws {
-        // Implement workout scheduling using WorkoutKit
-        // This will depend on your specific implementation
+        return WorkoutPlan(.custom(customWorkout))
     }
 } 

@@ -16,7 +16,7 @@ enum TimeOfDay: String, Codable, CaseIterable {
 
 struct TrainingPlan: Codable, Identifiable {
     let id: UUID
-    let userId: String
+    let userId: UUID
     let name: String
     let goal: Models.RunningGoal
     let startDate: Date
@@ -28,28 +28,59 @@ struct TrainingPlan: Codable, Identifiable {
     let current5KTime: TimeInterval?
     let targetRaceDistance: Double?
     let targetRaceTime: TimeInterval?
+    let createdAt: Date?
+    let updatedAt: Date?
     
-    enum CodingKeys: String, CodingKey {
-        case id, userId, name, goal, startDate, endDate
-        case fitnessLevel, workoutDays, preferredTime, workouts
-        case current5KTime, targetRaceDistance, targetRaceTime
+    init(
+        id: UUID = UUID(),
+        userId: UUID,
+        name: String,
+        goal: Models.RunningGoal,
+        startDate: Date,
+        endDate: Date,
+        fitnessLevel: Models.FitnessLevel,
+        workoutDays: [Models.Weekday],
+        preferredTime: Models.TimeOfDay,
+        workouts: [PlannedWorkout],
+        current5KTime: TimeInterval?,
+        targetRaceDistance: Double?,
+        targetRaceTime: TimeInterval?,
+        createdAt: Date?,
+        updatedAt: Date?
+    ) {
+        self.id = id
+        self.userId = userId
+        self.name = name
+        self.goal = goal
+        self.startDate = startDate
+        self.endDate = endDate
+        self.fitnessLevel = fitnessLevel
+        self.workoutDays = workoutDays
+        self.preferredTime = preferredTime
+        self.workouts = workouts
+        self.current5KTime = current5KTime
+        self.targetRaceDistance = targetRaceDistance
+        self.targetRaceTime = targetRaceTime
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
     }
     
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        userId = try container.decode(String.self, forKey: .userId)
-        name = try container.decode(String.self, forKey: .name)
-        goal = try container.decode(Models.RunningGoal.self, forKey: .goal)
-        startDate = try container.decode(Date.self, forKey: .startDate)
-        endDate = try container.decode(Date.self, forKey: .endDate)
-        fitnessLevel = try container.decode(Models.FitnessLevel.self, forKey: .fitnessLevel)
-        workoutDays = try container.decode([Models.Weekday].self, forKey: .workoutDays)
-        preferredTime = try container.decode(Models.TimeOfDay.self, forKey: .preferredTime)
-        workouts = try container.decode([PlannedWorkout].self, forKey: .workouts)
-        current5KTime = try container.decodeIfPresent(TimeInterval.self, forKey: .current5KTime)
-        targetRaceDistance = try container.decodeIfPresent(Double.self, forKey: .targetRaceDistance)
-        targetRaceTime = try container.decodeIfPresent(TimeInterval.self, forKey: .targetRaceTime)
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case name
+        case goal
+        case startDate = "start_date"
+        case endDate = "end_date"
+        case fitnessLevel = "fitness_level"
+        case workoutDays = "workout_days"
+        case preferredTime = "preferred_time"
+        case workouts
+        case current5KTime = "current_5k_time"
+        case targetRaceDistance = "target_race_distance"
+        case targetRaceTime = "target_race_time"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
     
     func encode(to encoder: Encoder) throws {
@@ -67,28 +98,114 @@ struct TrainingPlan: Codable, Identifiable {
         try container.encodeIfPresent(current5KTime, forKey: .current5KTime)
         try container.encodeIfPresent(targetRaceDistance, forKey: .targetRaceDistance)
         try container.encodeIfPresent(targetRaceTime, forKey: .targetRaceTime)
-    }
-    
-    init(id: UUID, userId: String, name: String, goal: Models.RunningGoal, startDate: Date, endDate: Date, 
-         fitnessLevel: Models.FitnessLevel, workoutDays: [Models.Weekday], preferredTime: Models.TimeOfDay,
-         workouts: [PlannedWorkout], current5KTime: TimeInterval?, targetRaceDistance: Double?, targetRaceTime: TimeInterval?) {
-        self.id = id
-        self.userId = userId
-        self.name = name
-        self.goal = goal
-        self.startDate = startDate
-        self.endDate = endDate
-        self.fitnessLevel = fitnessLevel
-        self.workoutDays = workoutDays
-        self.preferredTime = preferredTime
-        self.workouts = workouts
-        self.current5KTime = current5KTime
-        self.targetRaceDistance = targetRaceDistance
-        self.targetRaceTime = targetRaceTime
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
     }
     
     var durationInWeeks: Int {
         Calendar.current.dateComponents([.weekOfYear], from: startDate, to: endDate).weekOfYear ?? 0
+    }
+    
+    static func create(
+        userId: UUID,
+        name: String,
+        goal: Models.RunningGoal,
+        startDate: Date,
+        endDate: Date,
+        fitnessLevel: Models.FitnessLevel,
+        workoutDays: [Models.Weekday],
+        preferredTime: Models.TimeOfDay,
+        current5KTime: TimeInterval?,
+        targetRaceDistance: Double?,
+        targetRaceTime: TimeInterval?
+    ) -> TrainingPlan {
+        let workouts = generateWorkouts(
+            goal: goal,
+            fitnessLevel: fitnessLevel,
+            startDate: startDate,
+            endDate: endDate,
+            workoutDays: workoutDays
+        )
+        
+        return TrainingPlan(
+            id: UUID(),
+            userId: userId,
+            name: name,
+            goal: goal,
+            startDate: startDate,
+            endDate: endDate,
+            fitnessLevel: fitnessLevel,
+            workoutDays: workoutDays,
+            preferredTime: preferredTime,
+            workouts: workouts,
+            current5KTime: current5KTime,
+            targetRaceDistance: targetRaceDistance,
+            targetRaceTime: targetRaceTime,
+            createdAt: nil,
+            updatedAt: nil
+        )
+    }
+    
+    private static func generateWorkouts(
+        goal: Models.RunningGoal,
+        fitnessLevel: Models.FitnessLevel,
+        startDate: Date,
+        endDate: Date,
+        workoutDays: [Models.Weekday]
+    ) -> [PlannedWorkout] {
+        var workouts: [PlannedWorkout] = []
+        let calendar = Calendar.current
+        let totalWeeks = calendar.dateComponents([.weekOfYear], from: startDate, to: endDate).weekOfYear ?? 8
+        
+        for weekOffset in 0..<totalWeeks {
+            let phase = determinePhase(week: weekOffset, totalWeeks: totalWeeks)
+            
+            for day in workoutDays {
+                guard let date = calendar.date(byAdding: .day, value: weekOffset * 7 + day.dayValue, to: startDate) else { continue }
+                
+                let workout = createWorkoutForDay(
+                    date: date,
+                    phase: phase,
+                    goal: goal,
+                    fitnessLevel: fitnessLevel,
+                    dayOfWeek: day
+                )
+                workouts.append(workout)
+            }
+        }
+        
+        return workouts
+    }
+    
+    private static func determinePhase(week: Int, totalWeeks: Int) -> TrainingPhase {
+        let phaseLength = totalWeeks / 3
+        switch week {
+        case 0..<phaseLength:
+            return .foundation
+        case phaseLength..<(phaseLength * 2):
+            return .development
+        default:
+            return .peak
+        }
+    }
+    
+    private static func createWorkoutForDay(
+        date: Date,
+        phase: TrainingPhase,
+        goal: Models.RunningGoal,
+        fitnessLevel: Models.FitnessLevel,
+        dayOfWeek: Models.Weekday
+    ) -> PlannedWorkout {
+        switch goal {
+        case .beginnerFitness:
+            return createBeginnerWorkout(date: date, phase: phase, fitnessLevel: fitnessLevel, dayOfWeek: dayOfWeek)
+        case .couchTo5K:
+            return createCouch5KWorkout(date: date, phase: phase, fitnessLevel: fitnessLevel, dayOfWeek: dayOfWeek)
+        case .raceTraining:
+            return createRaceWorkout(date: date, phase: phase, fitnessLevel: fitnessLevel, dayOfWeek: dayOfWeek)
+        case .improvePace:
+            return createSpeedWorkout(date: date, phase: phase, fitnessLevel: fitnessLevel, dayOfWeek: dayOfWeek)
+        }
     }
 }
 
@@ -153,6 +270,204 @@ enum WorkoutIntensity: String, Codable {
             return [.customColors.orange, .customColors.red]
         case .high:
             return [CustomColors.Brand.primary, CustomColors.Brand.secondary]
+        }
+    }
+}
+
+// MARK: - Specific Workout Generators
+extension TrainingPlan {
+    private static func createBeginnerWorkout(
+        date: Date,
+        phase: TrainingPhase,
+        fitnessLevel: Models.FitnessLevel,
+        dayOfWeek: Models.Weekday
+    ) -> PlannedWorkout {
+        let baseDistance = fitnessLevel.recommendedDistance
+        let baseDuration: TimeInterval = 30 * 60 // 30 minutes
+        
+        switch (phase, dayOfWeek) {
+        case (_, .saturday), (_, .sunday): // Weekend runs are longer
+            return PlannedWorkout(
+                id: UUID(),
+                date: date,
+                workoutType: .longRun,
+                duration: baseDuration * 1.5,
+                distance: baseDistance * 1.5,
+                intensity: .low,
+                description: "Long Easy Run"
+            )
+            
+        default: // Weekday runs
+            let (type, duration, distance, intensity) = phase.beginnerWorkout(baseDistance: baseDistance, baseDuration: baseDuration)
+            return PlannedWorkout(
+                id: UUID(),
+                date: date,
+                workoutType: type,
+                duration: duration,
+                distance: distance,
+                intensity: intensity,
+                description: "\(type.title) - \(phase.rawValue) Phase"
+            )
+        }
+    }
+    
+    private static func createCouch5KWorkout(
+        date: Date,
+        phase: TrainingPhase,
+        fitnessLevel: Models.FitnessLevel,
+        dayOfWeek: Models.Weekday
+    ) -> PlannedWorkout {
+        let (duration, runInterval, walkInterval) = phase.couch5KIntervals(weekNumber: 0)
+        
+        return PlannedWorkout(
+            id: UUID(),
+            date: date,
+            workoutType: .intervals,
+            duration: duration,
+            distance: nil, // Distance will vary based on pace
+            intensity: .moderate,
+            description: "Run \(runInterval)min / Walk \(walkInterval)min intervals"
+        )
+    }
+    
+    private static func createRaceWorkout(
+        date: Date,
+        phase: TrainingPhase,
+        fitnessLevel: Models.FitnessLevel,
+        dayOfWeek: Models.Weekday
+    ) -> PlannedWorkout {
+        let baseDistance = phase.distanceMultiplier * fitnessLevel.recommendedDistance
+        let intensity: WorkoutIntensity = dayOfWeek == .saturday || dayOfWeek == .sunday ? .low : phase.intensity
+        
+        return PlannedWorkout(
+            id: UUID(),
+            date: date,
+            workoutType: phase.workoutType(dayOfWeek: dayOfWeek),
+            duration: baseDistance * fitnessLevel.recommendedPace,
+            distance: baseDistance,
+            intensity: intensity,
+            description: phase.workoutDescription(distance: baseDistance)
+        )
+    }
+    
+    private static func createSpeedWorkout(
+        date: Date,
+        phase: TrainingPhase,
+        fitnessLevel: Models.FitnessLevel,
+        dayOfWeek: Models.Weekday
+    ) -> PlannedWorkout {
+        let baseDistance = fitnessLevel.recommendedDistance
+        let baseDuration = baseDistance * fitnessLevel.recommendedPace
+        
+        switch (phase, dayOfWeek) {
+        case (_, .saturday):
+            return PlannedWorkout(
+                id: UUID(),
+                date: date,
+                workoutType: .longRun,
+                duration: baseDuration * 1.5,
+                distance: baseDistance * 1.5,
+                intensity: .low,
+                description: "Long Easy Run"
+            )
+        case (.peak, .wednesday):
+            return PlannedWorkout(
+                id: UUID(),
+                date: date,
+                workoutType: .intervals,
+                duration: 45 * 60,
+                distance: 5.0,
+                intensity: .high,
+                description: "Speed Intervals"
+            )
+        default:
+            return PlannedWorkout(
+                id: UUID(),
+                date: date,
+                workoutType: .tempo,
+                duration: baseDuration,
+                distance: baseDistance,
+                intensity: .moderate,
+                description: "Tempo Run"
+            )
+        }
+    }
+}
+
+// MARK: - Training Phase Extensions
+extension TrainingPlan.TrainingPhase {
+    var distanceMultiplier: Double {
+        switch self {
+        case .foundation: return 0.6
+        case .development: return 0.8
+        case .peak: return 1.0
+        }
+    }
+    
+    var intensity: WorkoutIntensity {
+        switch self {
+        case .foundation: return .low
+        case .development: return .moderate
+        case .peak: return .high
+        }
+    }
+    
+    func workoutType(dayOfWeek: Models.Weekday) -> WorkoutType {
+        switch (self, dayOfWeek) {
+        case (_, .saturday), (_, .sunday):
+            return .longRun
+        case (.peak, .wednesday):
+            return .intervals
+        case (.development, .wednesday):
+            return .tempo
+        default:
+            return .easy
+        }
+    }
+    
+    func workoutDescription(distance: Double) -> String {
+        switch self {
+        case .foundation:
+            return "Base Building Run"
+        case .development:
+            return "Progressive Run"
+        case .peak:
+            return "Race Pace Run"
+        }
+    }
+    
+    func couch5KIntervals(weekNumber: Int) -> (duration: TimeInterval, runInterval: Int, walkInterval: Int) {
+        switch weekNumber {
+        case 0...1:
+            return (30 * 60, 1, 2)
+        case 2...3:
+            return (30 * 60, 2, 2)
+        case 4...5:
+            return (35 * 60, 3, 1)
+        case 6...7:
+            return (35 * 60, 5, 1)
+        default:
+            return (40 * 60, 8, 1)
+        }
+    }
+}
+
+// MARK: - Supporting Types
+extension TrainingPlan {
+    enum TrainingPhase: String {
+        case foundation = "Foundation"
+        case development = "Development"
+        case peak = "Peak"
+        
+        func beginnerWorkout(baseDistance: Double, baseDuration: TimeInterval) -> (WorkoutType, TimeInterval, Double, WorkoutIntensity) {
+            switch self {
+            case .foundation:
+                return (.easy, baseDuration, baseDistance, .low)
+            case .development:
+                return (.tempo, baseDuration * 1.2, baseDistance * 1.2, .moderate)
+            case .peak:
+                return (.intervals, baseDuration * 1.3, baseDistance * 1.3, .high)
+            }
         }
     }
 } 

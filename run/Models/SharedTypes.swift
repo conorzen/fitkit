@@ -118,14 +118,6 @@ func formatTime(_ timeInterval: TimeInterval) -> String {
     return String(format: "%d:%02d", minutes, seconds)
 }
 
-class AuthManager: ObservableObject {
-    @Published var currentUser: User?
-    
-    struct User {
-        let id: String
-        let email: String
-    }
-}
 
 // Add notification name
 extension Notification.Name {
